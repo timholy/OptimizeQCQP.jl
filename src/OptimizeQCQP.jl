@@ -46,9 +46,9 @@ function minimize(Q0::AbstractMatrix{T}, g0::AbstractVector{T},
         @assert ΔλC >= 0
         xC = x0 + ΔλC*Δx   # this is our estimate of the solution, given this Δλ
         # (2) If Δλ*Q1 dominates C, then just use x ≈ (1/Δλ) * (Q1 \ (-g))  (dropping C altogether)
-        x1 = Q1 \ (-g0)                # coefficient of Δλ
-        Δλ1 = sqrt(-(g0'*x1)/(2*cu))   # our alternative estimate of Δλ
-        x1 ./= Δλ1                     # the alternate estimate of x
+        v1 = Q1 \ (-g0)
+        Δλ1 = sqrt(-(g0'*v1)/(2*cu))   # initial alternative estimate of Δλ, discounting higher-order Δλ
+        x1 = v1 ./ Δλ1         # the alternate estimate of x
         # Pick between them by assessing accuracy in matching
         #     (C + Δλ*Q1) * x = -g0
         errC = Q0*xC .+ (λ + ΔλC).*(Q1*xC) .+ g0
@@ -56,7 +56,9 @@ function minimize(Q0::AbstractMatrix{T}, g0::AbstractVector{T},
         absprod(x, y) = abs(x)*abs(y)
         errmagC = sum(absprod(x,y) for (x,y) in zip(errC, xC))
         errmag1 = sum(absprod(x,y) for (x,y) in zip(err1, x1))
-        λ = errmagC > errmag1 ? λ + Δλ1 : λ + ΔλC
+        # λ = (s2 < 0 || errmagC > errmag1) ? λ + Δλ1 : λ + ΔλC
+        # Use interpolation, weighted by the error
+        λ += (errmag1*ΔλC + errmagC*Δλ1)/(errmag1 + errmagC)
         C = cholesky(Q0 + λ*Q1)
     end
 
@@ -88,6 +90,46 @@ function minimize(Q0::AbstractMatrix{T}, g0::AbstractVector{T},
     end
     return x, λ
 end
+
+# Junk from attempt to incorporate higher-order correction
+        # (2) If Δλ*Q1 dominates C, use the expansion
+        #        inv(C + Δλ*Q1) ≈ inv(Δλ*Q1) - inv(Δλ*Q1)*C*inv(Δλ*Q1)
+        #                       = (1/Δλ - λ/Δλ^2)*inv(Q1) - (1/Δλ^2)*inv(Q1)*Q0*inv(Q1)
+        # v2 = Q1 \ (Q0 * v1)
+        # v1Qv1, v2Qv2, v1Qv2 = v1'*Q1*v1, v2'*Q1*v2, v1'*Q1*v2
+        # let λ=λ, v1Qv1=v1Qv1, v2Qv2=v2Qv2, v1Qv2=v1Qv2, cu=cu
+        #     froot(Δλ) = (1/Δλ^2) * ((1-λ/Δλ)^2*v1Qv1 - 2*(1-λ/Δλ)/Δλ*v1Qv2 + 1/Δλ^2*v2Qv2) - 2*cu
+        #     Δλ1 = bisectroot(froot, zero(Δλ1), Δλ1)
+        # end
+        # x1 = (1/Δλ1-λ/Δλ1^2).*v1 - v2./Δλ1^2         # the alternate estimate of x
+
+# function bisectroot(f, a, b; tol=1e-3, maxiter=10, maxseek=20)
+#     fa, fb = f(a), f(b)
+#     f0 = min(abs(fa), abs(fb))
+#     fa == 0 && return a
+#     fb == 0 && return b
+#     iter = 0
+#     while fa*fb > 0 && iter < maxseek
+#         a, fa = b, fb
+#         b *= 2
+#         fb = f(b)
+#         fb == 0 && return b
+#         iter += 1
+#     end
+#     iter = 0
+#     while iter < maxiter
+#         c = (a+b)/2
+#         fc = f(c)
+#         (fc == 0 || (abs(fc - fa) + abs(fc - fb)) < tol*f0) && return c
+#         if sign(fc) == sign(fa)
+#             a, fa = c, fc
+#         else
+#             b, fb = c, fc
+#         end
+#         iter += 1
+#     end
+#     return b
+# end
 
 # Solve the problem:
 #    (approximately) minimize x'*Q0*x/2 + g0'*x
