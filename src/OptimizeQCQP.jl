@@ -16,12 +16,12 @@ function minimize(Q0::AbstractMatrix{T}, g0::AbstractVector{T},
 
     # Pick a safe value of λ that makes Q0 + λ*Q1 positive-definite.
     # Keep track of the smallest known such value in λp
-    λp = λ = posdefλ(Q0, Q1)
+    λ, C = posdefλ(Q0, Q1)
+    λp = λ
 
     ## Construct an initial estimate
-    C = cholesky(Q0 + λ*Q1)
-    x0 = C \ (-g0)
-    xQx = x0'*Q1*x0
+    x = C \ (-g0)
+    xQx = x'*(Q1*x)
     if xQx > 2*cu
         # Since λ only guarantees positivity and does not even try to satisfy the cu
         # constraint, it's possible that this λ is far too small. Try to estimate the right
@@ -30,11 +30,11 @@ function minimize(Q0::AbstractMatrix{T}, g0::AbstractVector{T},
         # and then picking Δλ so that x satisfies the constraint.
         # We can expand that inverse in two ways:
         # (1) If C dominates Δλ*Q1, use the expansion inv(C + Δλ*Q1) ≈ inv(C) - Δλ*inv(C)*Q1*inv(C)
-        Δx = - (C \ (Q1 * x0))  # coefficient of Δλ in correction to x0
-        # Solve for Δλ from (x0 + Δλ*Δx)'*Q1*(x0 + Δλ*Δx) == 2*cu
-        a = Δx'*Q1*Δx       # coefficient of Δλ^2
-        b = 2*x0'*Q1*Δx     # coefficient of Δλ (guaranteed negative)
-        c = xQx - 2*cu      # const (coefficient of Δλ^0)
+        Δx = - (C \ (Q1 * x))  # coefficient of Δλ in correction to x
+        # Solve for Δλ from (x + Δλ*Δx)'*Q1*(x + Δλ*Δx) == 2*cu
+        a = Δx'*(Q1*Δx)       # coefficient of Δλ^2
+        b = 2*x'*(Q1*Δx)      # coefficient of Δλ (guaranteed negative)
+        c = xQx - 2*cu        # const (coefficient of Δλ^0)
         s2 = b^2 - 4*a*c
         if s2 >= 0
             ΔλC = 2*c/(-b + sqrt(s2))   # choose the smaller of the two roots
@@ -44,7 +44,7 @@ function minimize(Q0::AbstractMatrix{T}, g0::AbstractVector{T},
             ΔλC = -b/(2*a)
         end
         @assert ΔλC >= 0
-        xC = x0 + ΔλC*Δx   # this is our estimate of the solution, given this Δλ
+        xC = x + ΔλC*Δx   # this is our estimate of the solution, given this Δλ
         # (2) If Δλ*Q1 dominates C, then just use x ≈ (1/Δλ) * (Q1 \ (-g))  (dropping C altogether)
         v1 = Q1 \ (-g0)
         Δλ1 = sqrt(-(g0'*v1)/(2*cu))   # initial alternative estimate of Δλ, discounting higher-order Δλ
@@ -60,33 +60,46 @@ function minimize(Q0::AbstractMatrix{T}, g0::AbstractVector{T},
         # Use interpolation, weighted by the error
         λ += (errmag1*ΔλC + errmagC*Δλ1)/(errmag1 + errmagC)
         C = cholesky(Q0 + λ*Q1)
+        x = C \ (-g0)
+        xQx = x'*(Q1*x)
     end
 
     ## Newton's method iterative improvement
     # Algorithm 4.3 in Nodecal & Wright, generalized for Q1 != I
-    xQxold = T(Inf)
-    local x
+    # Also written to make it globally convergent
     iter = 0
     while iter < 10
         λp = min(λ, λp)
-        x = C \ (-g0)
+        xQxold = xQx
         q = Q1*x
         dxdλ = - (C \ q)
-        xQx = x'*q
         Δ = cu - xQx/2
         Δλ = Δ/cu * (xQx / (2*(q'*dxdλ)))
-        λ = max(λ + Δλ, zero(T))
-        abs(xQx - xQxold) < tol*(xQx + xQxold) && break
-        xQxold = xQx
-        iter += 1
-        C = cholesky(Q0 + λ*Q1; check=false)
-        iterc = 0
-        while !issuccess(C) && iterc < 20
-            λ = (λ + λp)/2   # bisect the gap to a known-safe value
+        λold = λ
+        # Global convergence iteration
+        itergc = 0
+        while itergc < 10
+            λ = max(λold + Δλ, zero(T))
+            # posdef iteration
             C = cholesky(Q0 + λ*Q1; check=false)
-            iterc += 1
+            iterc = 0
+            while !issuccess(C) && iterc < 10
+                iterc += 1
+                λ = (λ + iterc*λp)/(iterc+1)   # move towards a known-safe value
+                C = cholesky(Q0 + λ*Q1; check=false)
+            end
+            if !issuccess(C)
+                λ = (λold + λp)/2
+                C = cholesky(Q0 + λ*Q1)
+            end
+            x = C \ (-g0)
+            xQx = x'*(Q1*x)
+            (xQx <= 2*cu || abs(xQx - 2*cu) < abs(xQxold - 2*cu)) && break
+            itergc += 1
+            Δλ /= itergc+1
         end
-        issuccess(C) || error("cholesky factorization failed with $λ (compare $λp)")
+        abs(xQx - xQxold) < tol*(xQx + xQxold) && break
+        iter += 1
     end
     return x, λ
 end

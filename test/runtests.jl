@@ -58,25 +58,25 @@ end
 
 @testset "posdefλ" begin
     A = symdense([-1.4, 0.2, 3])
-    λ = OptimizeQCQP.posdefλ(A, I)
+    λ, _ = OptimizeQCQP.posdefλ(A, I)
     @test λ >= 1.4 && λ < 2
-    λ = OptimizeQCQP.posdefλ(A, 2*I)
+    λ, _ = OptimizeQCQP.posdefλ(A, 2*I)
     @test λ >= 0.7 && λ < 1
-    λ = OptimizeQCQP.posdefλ(A, 0.5*I)
+    λ, _ = OptimizeQCQP.posdefλ(A, 0.5*I)
     @test λ >= 2.8 && λ < 4
     B = Diagonal(fill(0.5, 3))
-    λ = OptimizeQCQP.posdefλ(A, B)
+    λ, _ = OptimizeQCQP.posdefλ(A, B)
     @test λ >= 2.8 && λ < 4
-    λ = OptimizeQCQP.posdefλ(A, Matrix(B))
+    λ, _ = OptimizeQCQP.posdefλ(A, Matrix(B))
     @test λ >= 2.8 && λ < 4
 
     A = SymTridiagonal([-1, 0.1, 2], [0.0, 0.0])
-    λ = OptimizeQCQP.posdefλ(A, I)
+    λ, _ = OptimizeQCQP.posdefλ(A, I; growauto=1+1e-9)
     @test λ ≈ 1
-    λ = OptimizeQCQP.posdefλ(A, 2*I)
+    λ, _ = OptimizeQCQP.posdefλ(A, 2*I; growauto=1+1e-9)
     @test λ ≈ 0.5
     A = SymTridiagonal([-1, 0.1, 2], [1.0, 1.0])
-    λ = OptimizeQCQP.posdefλ(A, I)
+    λ, _ = OptimizeQCQP.posdefλ(A, I)
     @test λ >= -minimum(eig(Matrix(A))[1])
 end
 
@@ -90,7 +90,7 @@ end
             g0 = randn(n)
             xNewton = Q0 \ (-g0)
             Q1 = 1.0*I
-            @test OptimizeQCQP.posdefλ(Q0, Q1) == 0
+            @test OptimizeQCQP.posdefλ(Q0, Q1)[1] == 0
             cu = 1.1*(xNewton'*Q1*xNewton)/2
             x, λ = minimize(Q0, g0, nothing, nothing, Q1, nothing, nothing, cu; tol=1e-8)
             @test (x'*Q1*x)/2 <= 1.01*cu
@@ -104,7 +104,7 @@ end
             x_ipopt, val_ipopt = checksolution(Q0, g0, Q1, cu)
             @test (x'*Q0*x)/2 + g0'*x <= val_ipopt + 1e-5*abs(val_ipopt)
             Q1 = Diagonal(0.25+rand(n))
-            @test OptimizeQCQP.posdefλ(Q0, Q1) == 0
+            @test OptimizeQCQP.posdefλ(Q0, Q1)[1] == 0
             cu = 1.1*(xNewton'*Q1*xNewton)/2
             x, λ = minimize(Q0, g0, nothing, nothing, Q1, nothing, nothing, cu; tol=1e-8)
             @test (x'*Q1*x)/2 <= 1.01*cu
@@ -127,14 +127,14 @@ end
             g0 = randn(n)
             for cu in (1.3, 0.5, 0.1, 0.01, 1e-6)
                 Q1 = 1.0*I
-                λ = OptimizeQCQP.posdefλ(Q0, Q1)
+                λ, _ = OptimizeQCQP.posdefλ(Q0, Q1)
                 checkposdef(Q0 + λ*Q1)
                 x, λ = minimize(Q0, g0, nothing, nothing, Q1, nothing, nothing, cu; tol=1e-8)
                 @test (x'*Q1*x)/2 <= 1.01*cu
                 x_ipopt, val_ipopt = checksolution(Q0, g0, Q1, cu)
                 @test (x'*Q0*x)/2 + g0'*x <= val_ipopt + 1e-5*abs(val_ipopt)
                 Q1 = Diagonal(0.25+rand(n))
-                λ = OptimizeQCQP.posdefλ(Q0, Q1)
+                λ, _ = OptimizeQCQP.posdefλ(Q0, Q1)
                 checkposdef(Q0 + λ*Q1)
                 x, λ = minimize(Q0, g0, nothing, nothing, Q1, nothing, nothing, cu; tol=1e-8)
                 @test (x'*Q1*x)/2 <= 1.01*cu

@@ -5,15 +5,18 @@ using Base.LinAlg: BlasInt, Cholesky
 ## Custom stuff
 
 """
-    λ = posdefλ(Q0, Q1)
+    λ, C = posdefλ(Q0, Q1)
 
 Provide an initial `λ` such that `Q0 + λ*Q1` is positive-semidefinite (or preferably,
-positive-definite).  `λ` may be larger than strictly necessary.
+positive-definite).  `λ` may be larger than strictly necessary. `C` is the Cholesky
+decomposition of `Q0 + λ*Q1`.
 """
-function posdefλ(Q0::SymTridiagonal{T}, Q1::Union{Diagonal{T},UniformScaling}) where T
+function posdefλ(Q0::SymTridiagonal{T}, Q1::Union{Diagonal{T},UniformScaling};
+                 growauto=T(1.0001), growfail=T(1.1)) where T
     λ = zero(T)
-    if issuccess(cholesky(Q0; check=false))
-        return zero(T)
+    C = cholesky(Q0; check=false)
+    if issuccess(C)
+        return λ, C
     end
     dv, ev = Q0.dv, Q0.ev
     n = length(dv)
@@ -40,45 +43,40 @@ function posdefλ(Q0::SymTridiagonal{T}, Q1::Union{Diagonal{T},UniformScaling}) 
             # numerically-stable way.
             λ0 = b > 0  ?  -2*c/(s + b)  :  (-b + s)/(2*a)
             λ = max(λ, λ0)
-            # try
-            #     @assert α*ev[i]^2 <= (1+1e-8)*(dv[i] + λ*Q1[i,i])*(dv[i+1] + λ*Q1[i+1,i+1])
-            # catch
-            #     @show  α*ev[i]^2 (dv[i] + λ*Q1[i,i])*(dv[i+1] + λ*Q1[i+1,i+1])
-            #     rethrow()
-            # end
         end
     end
-    return λ
+    # Due to roundoff we need to check whether this actually produces a posdef matrix
+    λ *= T(growauto)
+    C = cholesky(Q0 + λ*Q1; check=false)
+    while !issuccess(C)
+        λ *= T(growfail)
+        C = cholesky(Q0 + λ*Q1; check=false)
+    end
+    return λ, C
 end
 
-function posdefλ(Q0::AbstractMatrix{T}, Q1::Union{AbstractMatrix{T},UniformScaling}) where T
-    isposdef(Q0) && return zero(T)
+function posdefλ(Q0::AbstractMatrix{T}, Q1::Union{AbstractMatrix{T},UniformScaling};
+                 growauto=T(1.0001), growfail=T(1.1)) where T
+    λ = zero(T)
+    C = cholesky(Q0; check=false)
+    if issuccess(C)
+        return λ, C
+    end
     if isa(Q1, UniformScaling)
         D, _ = eigs(Q0; nev=1, which=:SR, ritzvec=false)
-        λ = -D[1]/T(Q1.λ)
+        λ = -T(D[1]/T(Q1.λ))
     else
         D, _ = eigs(Q0, Q1; nev=1, which=:SR, ritzvec=false)
-        λ = -D[1]
+        λ = -T(D[1])
     end
     @assert λ > 0
-    λ *= T(1.0001)   # more likely to make it posdef on the first iteration
-    while !isposdef(Q0 + λ*Q1)
-        λ *= T(1.1)
+    λ *= T(growauto)
+    C = cholesky(Q0 + λ*Q1; check=false)
+    while !issuccess(C)
+        λ *= T(growfail)
+        C = cholesky(Q0 + λ*Q1; check=false)
     end
-    return λ
-    # D, _ = eig(Q0, Q1)
-    # if !issorted(D)
-    #     @show Q0 Q1 D
-    # end
-    # @assert issorted(D)
-    # Dmin = D[1]
-    # # Theoretically we could just return -Dmin, but due to roundoff error we have
-    # # to be more cautious
-    # for d in D
-    #     λ = -Dmin + (d-Dmin)
-    #     isposdef(Q0+λ*Q1) && return λ
-    # end
-    # error("No suitable λ found, eigenvalues: $D")
+    return λ, C
 end
 
 asmatrix(M::UniformScaling{T}, sz) where T = M.λ * eye(T, sz...)
