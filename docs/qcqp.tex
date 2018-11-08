@@ -1,0 +1,130 @@
+\documentclass[letterpaper,abstracton]{scrartcl}
+\usepackage{amssymb,amsmath}
+
+\usepackage{graphicx}
+%\usepackage{fancyhdr}
+\usepackage{authblk}
+\usepackage{hyperref}
+\usepackage[comma,super,compress]{natbib}
+\usepackage{xspace}
+
+% Set up headers and footers
+%\pagestyle{fancy}
+
+\def\eq#1{Eq.~\eqref{eq:#1}}
+\def\eqs#1{Eqs.~\eqref{eq:#1}}
+\def\figref#1{Fig.~\ref{fig:#1}}
+\newcommand{\ud}{\mathrm{d}}
+
+% Put any new macros here
+\newcommand{\bfx}{\mathbf{x}}
+\newcommand{\bfg}{\mathbf{g}}
+\newcommand{\bfQ}{\mathbf{Q}}
+
+\begin{document}
+
+\title{My Title}
+
+%\author[1]{Someone else}
+\author[1,*]{Timothy E. Holy}
+\affil[1]{Department of Anatomy \& Neurobiology, Washington University School of Medicine, St. Louis, Missouri}
+\affil[*]{To whom correspondence should be addressed. Email: \url{holy@wustl.edu}}
+
+%\lhead{\emph{Running head}}
+%\chead{}
+%\rhead{\thepage}
+%\lfoot{}
+%\cfoot{}
+%\rfoot{}
+
+\date{\today}
+
+\maketitle
+
+\begin{abstract}
+Here's the abstract
+\end{abstract}
+
+\section{Simple case}
+
+Consider the problem
+\begin{subequations}
+  \begin{align}
+    \textrm{minimize } &\phantom{=} \frac{1}{2} \bfx^T \bfQ_0 \bfx + \bfg_0^T \bfx \\
+    \textrm{subject to } &\phantom{=} \frac{1}{2} \bfx^T \bfQ_1 \bfx \le c \label{eq:constraint1}
+  \end{align}
+\end{subequations}
+for positive-semidefinite $\bfQ_1$.
+Following chapter 4.3 of Nocedal \& Wright, consider $\bfQ_0 + \lambda \bfQ_1$ and assume that $\lambda$ is big enough to make this sum positive-definite.
+We seek a $\lambda$ such that \eq{constraint1} is satisfied at
+\begin{equation}
+  \label{eq:xdef1}
+  \bfx = (\bfQ_0 + \lambda \bfQ_1)^{-1} (-\bfg_0).
+\end{equation}
+Consider
+\begin{equation}
+  \phi_2(\lambda) = \frac{1}{c} - \frac{2}{\bfx^T \bfQ_1 \bfx},
+\end{equation}
+which exhibits a root at $\lambda$ such that \eq{constraint1} becomes an equality.
+We can therefore update $\lambda$ by Newton's method
+\begin{equation}
+  \lambda^{(l+1)} = \lambda^{(l)} - \frac{\phi_2(\lambda)}{\phi_2'(\lambda)}.
+\end{equation}
+Since
+\begin{equation}
+  \phi_2'(\lambda) = \frac{4 \bfx^T \bfQ_1 \frac{\ud \bfx}{\ud \lambda}}{\left(\bfx^T\bfQ_1\bfx\right)^2},
+\end{equation}
+we have
+\begin{equation}
+  \frac{\phi_2(\lambda)}{\phi_2'(\lambda)} = \frac{\bfx^T \bfQ_1 \bfx}{2\bfx^T\bfQ_1\frac{\ud \bfx}{\ud \lambda}} \frac{\frac{1}{2}\bfx^T\bfQ_1\bfx - c}{c}.
+\end{equation}
+From \eq{xdef1}, we have
+\begin{align}
+  \frac{\ud \bfx}{\ud \lambda} &= - (\bfQ_0+\lambda\bfQ_1)^{-1}\bfQ_1(\bfQ_0+\lambda\bfQ_1)^{-1}(-\bfg_0) \\
+  &= - (\bfQ_0+\lambda\bfQ_1)^{-1}\bfQ_1 \bfx.
+\end{align}
+
+\section{Cholesky factorization of symmetric tridiagonal matrices}
+
+In this case the factorization is simple:
+\begin{subequations}
+  \label{eq:cholA}
+  \begin{align}
+    A_{ii} &= L_{i,i-1}^2 + L_{ii}^2 \\
+    A_{i+1,i} &= L_{i+1,i}L_{ii}.
+  \end{align}
+\end{subequations}
+We initiate it with $L_{11} = \sqrt{A_{11}}$, and then iterate
+\begin{subequations}
+  \label{eq:cholL}
+  \begin{align}
+    L_{i+1,i} &= \frac{A_{i+1,i}}{L_{ii}}; \\
+    L_{i+1,i+1} &= \sqrt{A_{i+1,i+1} - L_{i+1,i}^2}.
+  \end{align}
+\end{subequations}
+% Note that \eqs{cholA} imply that $A_{ii} - 2A_{i,i-1} = (L_{i,i-1} - L_{ii})^2 \ge 0$,
+% consequently we can inspect the matrix and easily find a lower limit for what we need to add to the diagonal to avoid violating this requirement.
+\url{http://www.mat.uc.pt/~cmf/papers/tri_positive_definite_revisited.pdf} contains a number of potential conditions that could be leveraged for guessing an initial $\lambda$, for example
+\begin{equation}
+  4 \cos^2\left(\frac{\pi}{n+1}\right) b_i^2 < a_i a_{i+1},
+\end{equation}
+where $b_i$ are the off-diagonal values and $a_i$ the diagonals. This results in a quadratic inequality for $\lambda$.
+
+\begin{figure}[h]
+\caption{
+What a figure!
+\label{fig:example}
+}
+\end{figure}
+
+\begin{table}[h]
+\caption{
+Who needs tables?
+\label{tab:dumbtable}
+}
+\end{table}
+
+
+\clearpage
+
+\end{document}
