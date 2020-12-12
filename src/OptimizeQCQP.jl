@@ -1,7 +1,8 @@
-__precompile__(true)
-
 module OptimizeQCQP
-using Compat
+
+using LinearAlgebra
+using SparseArrays
+using Arpack
 
 export minimize, Problem
 

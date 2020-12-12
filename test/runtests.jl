@@ -1,6 +1,7 @@
 using OptimizeQCQP
 using JuMP, Ipopt   # for comparison purposes
-using Base.Test
+using LinearAlgebra
+using Test
 
 function checkposdef(M::SymTridiagonal)
     dv, ev = M.dv, M.ev
@@ -77,7 +78,7 @@ end
     @test λ ≈ 0.5
     A = SymTridiagonal([-1, 0.1, 2], [1.0, 1.0])
     λ, _ = OptimizeQCQP.posdefλ(A, I)
-    @test λ >= -minimum(eig(Matrix(A))[1])
+    @test λ >= -minimum(eigvals(Matrix(A))[1])
 end
 
 @testset "Q0/g0/Q1" begin
