@@ -1,6 +1,6 @@
 # import LinearAlgebra
 
-using Base.LinAlg: BlasInt, Cholesky
+using LinearAlgebra: BlasInt, Cholesky
 
 ## Custom stuff
 
@@ -89,12 +89,12 @@ function cholesky(A::SymTridiagonal{T}, ::Val{false}=Val(false); check::Bool=tru
     n = size(A, 1)
     dv = zeros(T, n)
     ev = zeros(T, n-1)
-    L = Bidiagonal{T}(dv, ev, false) #'L')  # {} needed to avoid copying
+    L = Bidiagonal{T}(dv, ev, :L)
     if A.dv[1] < 0
         check && error("A is not positive-semidefinte")
         dv[1] = A.dv[1]
         info = -1
-        return Cholesky(L, 'L') #, convert(BlasInt, info))
+        return Cholesky(L, 'L', convert(BlasInt, info))
     end
     dv[1] = sqrt(A.dv[1])
     info = 0
@@ -109,15 +109,15 @@ function cholesky(A::SymTridiagonal{T}, ::Val{false}=Val(false); check::Bool=tru
         end
         dv[i+1] = sqrt(Δ)
     end
-    return Cholesky(L, 'L') #, convert(BlasInt, info))
+    return Cholesky(L, 'L', convert(BlasInt, info))
 end
 
 # cholesky(A::AbstractMatrix{T}, ::Val{false}=Val(false); check::Bool=true) where T =
 #     cholfact(A)
 function cholesky(A::StridedMatrix{T}, ::Val{false}=Val(false); check::Bool=true) where T
-    L, info = LinAlg.LAPACK.potrf!('L', copy(A))
+    L, info = LinearAlgebra.LAPACK.potrf!('L', copy(A))
     check && @assert info == 0
-    return Cholesky(L, 'L')
+    return Cholesky(L, 'L', info)
 end
 
 # issuccess(C::Cholesky) = C.info == 0
@@ -148,5 +148,5 @@ function Base.:\(C::Cholesky{T,Bidiagonal{T}}, b::AbstractVector) where T
     return L' \ (L \ b)
 end
 
-Base.eigfact(A::AbstractMatrix, B::UniformScaling) = eigfact(A, asmatrix(B, size(A)))
-Base.eigfact(A::AbstractMatrix, B::Diagonal) = eigfact(A, asmatrix(B, size(A)))
+LinearAlgebra.eigen(A::AbstractMatrix, B::UniformScaling) = eigen(A, asmatrix(B, size(A)))
+LinearAlgebra.eigen(A::AbstractMatrix, B::Diagonal) = eigen(A, asmatrix(B, size(A)))
